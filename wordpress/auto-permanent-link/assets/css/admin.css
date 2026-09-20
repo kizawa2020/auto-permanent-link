@@ -1,0 +1,62 @@
+/* Auto Permanent Link — メタボックス スタイル */
+
+.apl-box .apl-desc {
+	margin: 0 0 8px;
+	color: #555;
+	font-size: 12px;
+}
+
+.apl-box .apl-generate {
+	width: 100%;
+}
+
+.apl-box .apl-excerpt-toggle {
+	display: block;
+	margin: 8px 0 4px;
+	font-size: 12px;
+	color: #555;
+}
+
+.apl-status {
+	margin: 8px 0;
+	font-size: 12px;
+	color: #2271b1;
+	min-height: 1em;
+}
+
+.apl-status.apl-error {
+	color: #b32d2e;
+}
+
+.apl-suggestions {
+	margin: 6px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.apl-suggestion {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 0;
+	border-top: 1px solid #eee;
+}
+
+.apl-suggestion .apl-slug {
+	flex: 1 1 auto;
+	word-break: break-all;
+	background: #f6f7f7;
+	padding: 2px 6px;
+	border-radius: 4px;
+	font-size: 12px;
+}
+
+.apl-suggestion .apl-len {
+	flex: 0 0 auto;
+	color: #888;
+	font-size: 11px;
+}
+
+.apl-suggestion .apl-apply {
+	flex: 0 0 auto;
+}

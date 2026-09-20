@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="720" viewBox="0 0 1100 720" font-family="'Noto Sans CJK JP','Meiryo',sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1100" height="720" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="550" y="38" text-anchor="middle" font-size="24" font-weight="700" fill="#1a1a1a">auto-permanent-link 構成図</text>
+  <text x="550" y="62" text-anchor="middle" font-size="14" fill="#666">WordPress記事タイトル → AI英語スラッグ推奨（オンデマンド・提案型／既存プロジェクトと完全分離）</text>
+
+  <!-- WordPress zone -->
+  <rect x="60" y="90" width="980" height="180" rx="14" fill="#eef4fb" stroke="#2b6cb0" stroke-width="2.5"/>
+  <text x="80" y="118" font-size="16" font-weight="700" fill="#2b6cb0">WordPress（Cocoon・Classic編集画面）</text>
+
+  <rect x="90" y="135" width="440" height="115" rx="10" fill="#ffffff" stroke="#cfd8e3" stroke-width="1.5"/>
+  <text x="110" y="162" font-size="14" font-weight="600" fill="#1a1a1a">メタボックス「パーマリンク推奨」</text>
+  <text x="110" y="188" font-size="12.5" fill="#555">［候補を生成］ボタン → 候補カード表示</text>
+  <text x="110" y="208" font-size="12.5" fill="#555">→ ［この案を適用］で slug 欄へ反映</text>
+  <text x="110" y="228" font-size="12.5" fill="#888">（提案型・自動書き込みなし）</text>
+
+  <rect x="560" y="135" width="450" height="115" rx="10" fill="#ffffff" stroke="#cfd8e3" stroke-width="1.5"/>
+  <text x="580" y="162" font-size="14" font-weight="600" fill="#1a1a1a">プラグイン auto-permanent-link</text>
+  <text x="580" y="188" font-size="12.5" fill="#555">AJAX/REST ハンドラ</text>
+  <text x="580" y="208" font-size="12.5" fill="#c0392b" font-weight="600">nonce 検証 + edit_others_posts 権限チェック</text>
+  <text x="580" y="228" font-size="12.5" fill="#555">→ Lambda へ HTTPS POST</text>
+
+  <!-- down arrow -->
+  <line x1="550" y1="270" x2="550" y2="320" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="565" y="300" font-size="12.5" fill="#444">HTTPS POST { title, excerpt? }</text>
+
+  <!-- AWS zone -->
+  <rect x="60" y="330" width="980" height="230" rx="14" fill="#fff6e9" stroke="#ff9900" stroke-width="2.5"/>
+  <text x="80" y="358" font-size="16" font-weight="700" fill="#d97706">AWS 独立スタック（CloudFormation：Lambda + API Gateway・WAFなし／VectorDBなし）</text>
+
+  <!-- API GW -->
+  <rect x="90" y="385" width="200" height="150" rx="10" fill="#ffffff" stroke="#e2c48a" stroke-width="1.5"/>
+  <text x="190" y="430" text-anchor="middle" font-size="14" font-weight="600" fill="#1a1a1a">API Gateway</text>
+  <text x="190" y="460" text-anchor="middle" font-size="12.5" fill="#555">POST /suggest</text>
+  <text x="190" y="482" text-anchor="middle" font-size="12.5" fill="#555">GET /health</text>
+
+  <line x1="290" y1="460" x2="335" y2="460" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Lambda -->
+  <rect x="345" y="385" width="400" height="150" rx="10" fill="#ffffff" stroke="#e2c48a" stroke-width="1.5"/>
+  <text x="545" y="412" text-anchor="middle" font-size="14" font-weight="600" fill="#1a1a1a">Lambda（素のハンドラ / Python 3.12）</text>
+  <text x="365" y="442" font-size="12.5" fill="#555">① Nova 呼び出し → ② numbered JSON 受領</text>
+  <text x="365" y="466" font-size="12.5" fill="#555">③ 正規化：英小文字・ハイフン化</text>
+  <text x="385" y="486" font-size="12.5" fill="#c0392b" font-weight="600">30字以内（ハイフン境界優先）・重複除去</text>
+  <text x="365" y="510" font-size="12.5" fill="#555">④ 全滅時フォールバック slug</text>
+
+  <line x1="745" y1="460" x2="790" y2="460" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Bedrock -->
+  <rect x="800" y="385" width="210" height="150" rx="10" fill="#ffffff" stroke="#e2c48a" stroke-width="1.5"/>
+  <text x="905" y="430" text-anchor="middle" font-size="14" font-weight="600" fill="#1a1a1a">Bedrock Nova 2 Lite</text>
+  <text x="905" y="460" text-anchor="middle" font-size="12" fill="#555">jp.amazon.</text>
+  <text x="905" y="480" text-anchor="middle" font-size="12" fill="#555">nova-2-lite-v1:0</text>
+
+  <!-- up arrow response -->
+  <line x1="550" y1="330" x2="550" y2="280" stroke="#2b6cb0" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="565" y="330" font-size="12.5" fill="#2b6cb0" font-weight="600">resp { suggestions: [{ slug, length }] } 最大3案</text>
+
+  <!-- notes -->
+  <line x1="60" y1="588" x2="1040" y2="588" stroke="#ccc" stroke-width="1" stroke-dasharray="5,4"/>
+  <text x="60" y="614" font-size="12.5" fill="#444"><tspan font-weight="700">分離方針：</tspan>既存プロジェクトと CloudFront・WAF・認証・Lambda・VectorDB を共有せず専用スタック。共有は Bedrock Nova 独立呼び出しのみ。</text>
+  <text x="60" y="638" font-size="12.5" fill="#444"><tspan font-weight="700">認証：</tspan>chat の HMAC トークンとは別方式（WP nonce + edit_others_posts 権限）。管理者・編集者限定・低頻度のため WAF 不要。</text>
+  <text x="60" y="662" font-size="12.5" fill="#444"><tspan font-weight="700">コスト：</tspan>1回あたり ¥0.1 未満、月数十円レベル（VectorDB・初期埋め込み・WAF 固定費なし）。</text>
+</svg>

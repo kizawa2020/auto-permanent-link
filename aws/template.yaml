@@ -1,0 +1,264 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  auto-permanent-link — English slug suggester (independent stack, plain CloudFormation).
+  Lambda (FastAPI via Lambda Web Adapter) + API Gateway REST API. No WAF, no vector DB.
+  Security: (A) shared-secret header verified in Lambda + (B) API key + usage-plan rate limit.
+  Lambda code is loaded from S3 (CodeBucket/CodeKey); update code with `lambda update-function-code`.
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: S3 bucket that holds the Lambda deployment zip.
+  CodeKey:
+    Type: String
+    Default: slug_suggester.zip
+    Description: S3 key of the Lambda deployment zip.
+  ModelId:
+    Type: String
+    Default: jp.amazon.nova-2-lite-v1:0
+    Description: Bedrock inference profile / model id for slug generation.
+  BedrockRegion:
+    Type: String
+    Default: ap-northeast-1
+    Description: Region used for the Bedrock runtime call.
+  GenerationTemperature:
+    Type: String
+    Default: '0.2'
+  MaxSlugLen:
+    Type: String
+    Default: '30'
+  NumSuggestions:
+    Type: String
+    Default: '3'
+  AllowedOrigins:
+    Type: String
+    Default: '*'
+    Description: Comma-separated CORS allow-list. Set to the WordPress site origin in production.
+  SharedSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: >
+      (A) Shared secret the WordPress plugin sends as X-Api-Secret. Lambda constant-time
+      compares it. Use a long random value (>=16 chars). Store it in the plugin settings too.
+  RateLimitPerSecond:
+    Type: Number
+    Default: 5
+    Description: (B) API Gateway steady-state request rate (req/s) for the usage plan.
+  RateBurst:
+    Type: Number
+    Default: 10
+    Description: (B) API Gateway burst capacity for the usage plan.
+  DailyQuota:
+    Type: Number
+    Default: 500
+    Description: (B) API Gateway max requests per day (cost runaway cap).
+
+Resources:
+
+  # ---------- IAM role for the Lambda ----------
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: auto-permanent-link-slug-suggester-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: bedrock-invoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: BedrockInvoke
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:Converse
+                Resource: '*'
+
+  # ---------- Lambda function (code from S3) ----------
+  SlugSuggesterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: auto-permanent-link-slug-suggester
+      Runtime: python3.12
+      Handler: app.lambda_handler
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt FunctionRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Environment:
+        Variables:
+          MODEL_ID: !Ref ModelId
+          BEDROCK_REGION: !Ref BedrockRegion
+          GENERATION_TEMPERATURE: !Ref GenerationTemperature
+          MAX_SLUG_LEN: !Ref MaxSlugLen
+          NUM_SUGGESTIONS: !Ref NumSuggestions
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+          SHARED_SECRET: !Ref SharedSecret        # (A) verified in Lambda
+
+  # ---------- REST API ----------
+  SlugApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: auto-permanent-link-api
+      Description: English slug suggester API (independent stack).
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # /suggest resource
+  SuggestResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SlugApi
+      ParentId: !GetAtt SlugApi.RootResourceId
+      PathPart: suggest
+
+  # /health resource
+  HealthResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref SlugApi
+      ParentId: !GetAtt SlugApi.RootResourceId
+      PathPart: health
+
+  # POST /suggest  (x-api-key required)  -> Lambda proxy
+  SuggestPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SlugApi
+      ResourceId: !Ref SuggestResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      ApiKeyRequired: true                        # (B) x-api-key required on /suggest
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST               # Lambda invocations are always POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlugSuggesterFunction.Arn}/invocations
+
+  # GET /health  (open, no key)  -> Lambda proxy
+  HealthGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SlugApi
+      ResourceId: !Ref HealthResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      ApiKeyRequired: false                       # health stays open for uptime checks
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SlugSuggesterFunction.Arn}/invocations
+
+  # OPTIONS /suggest  (CORS preflight, MOCK) — allow X-Api-Secret (A) + x-api-key (B)
+  SuggestOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SlugApi
+      ResourceId: !Ref SuggestResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      ApiKeyRequired: false
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Requested-With,X-Api-Secret,x-api-key'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Allow API Gateway to invoke the Lambda
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SlugSuggesterFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SlugApi}/*/*/*
+
+  # Deployment (redeploys when methods change via the DependsOn + logical id)
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - SuggestPostMethod
+      - HealthGetMethod
+      - SuggestOptionsMethod
+    Properties:
+      RestApiId: !Ref SlugApi
+      Description: auto-permanent-link deployment
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref SlugApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: prod
+
+  # ---------- (B) API key + usage plan: rate limit + daily quota ----------
+  ApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn:
+      - ApiStage
+    Properties:
+      Name: auto-permanent-link-key
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref SlugApi
+          StageName: prod
+
+  UsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn:
+      - ApiStage
+    Properties:
+      UsagePlanName: auto-permanent-link-usage-plan
+      Description: auto-permanent-link rate limit and daily quota
+      ApiStages:
+        - ApiId: !Ref SlugApi
+          Stage: prod
+      Throttle:
+        RateLimit: !Ref RateLimitPerSecond
+        BurstLimit: !Ref RateBurst
+      Quota:
+        Limit: !Ref DailyQuota
+        Period: DAY
+
+  UsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlan
+
+Outputs:
+  ApiEndpoint:
+    Description: Base URL to configure in the WordPress plugin (append /suggest).
+    Value: !Sub https://${SlugApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+  FunctionName:
+    Value: !Ref SlugSuggesterFunction
+  ApiKeyId:
+    Description: >
+      Retrieve the API key VALUE with:
+      aws apigateway get-api-key --api-key <this-id> --include-value --query value --output text
+      and paste it into the WordPress plugin settings as the x-api-key.
+    Value: !Ref ApiKey

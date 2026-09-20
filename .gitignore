@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Build / packaging
+*.zip
+build/
+dist/
+.aws-sam/
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Local env
+.env
+*.local
