@@ -68,7 +68,11 @@ BUCKET=auto-permanent-link-code-<accountid>   # 任意の一意な名前
 aws s3 mb s3://$BUCKET
 
 # 1) Lambda コードを zip 化（依存ゼロ: 素のハンドラで boto3 のみ＝ランタイム同梱、.py のみ）
-( cd lambda/slug_suggester && zip -r -X /tmp/slug_suggester.zip . -x '*__pycache__*' -x 'build/*' -x '*.pyc' -x 'requirements.txt' )
+#    ソースは app.py / slug.py / bedrock_client.py の 3 ファイルだけ。
+rm -f /tmp/slug_suggester.zip                        # 前回の zip が残っていると追記されるため消す
+cd lambda/slug_suggester
+zip /tmp/slug_suggester.zip app.py slug.py bedrock_client.py
+cd ../..
 
 # 2) S3 へアップロード
 aws s3 cp /tmp/slug_suggester.zip s3://$BUCKET/slug_suggester.zip
@@ -91,7 +95,12 @@ S3 キーが固定（`slug_suggester.zip`）のため `cloudformation deploy` �
 コードのみの反映は `lambda update-function-code` を使う:
 
 ```bash
-( cd lambda/slug_suggester && zip -r -X /tmp/slug_suggester.zip . -x '*__pycache__*' -x 'build/*' -x '*.pyc' -x 'requirements.txt' )
+# .py 3 ファイルだけを zip 化
+rm -f /tmp/slug_suggester.zip                        # 前回の zip が残っていると追記されるため消す
+cd lambda/slug_suggester
+zip /tmp/slug_suggester.zip app.py slug.py bedrock_client.py
+cd ../..
+
 aws s3 cp /tmp/slug_suggester.zip s3://$BUCKET/slug_suggester.zip
 aws lambda update-function-code \
   --function-name auto-permanent-link-slug-suggester \
