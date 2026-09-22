@@ -15,7 +15,7 @@ WordPress 記事タイトルから AI（Bedrock Nova 2 Lite）で英語スラッ
 - 「もう一度生成」で別候補：既出 slug を `exclude` で除外し、`variety` 時は生成温度を上げて多様化。
 - **素の CloudFormation テンプレート**（SAM ではない）: IAM Role / Lambda / API Gateway（/suggest・/health・OPTIONS）
   / Deployment / Stage / ApiKey / UsagePlan を明示。Lambda コードは S3 参照方式。WAF なし・VectorDB なし。
-- パッケージングは `aws/scripts/package_lambda.sh`（.py のみを zip、依存はランタイム同梱）。
+- パッケージングは手動 zip（`.py` のみを固める。依存は boto3 のみでランタイム同梱）。
 
 ### セキュリティ（二段構え）
 - **(A) 共有シークレットヘッダー** `X-Api-Secret` を Lambda が `hmac.compare_digest`（定数時間比較）。

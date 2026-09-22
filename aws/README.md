@@ -67,8 +67,8 @@ cd aws
 BUCKET=auto-permanent-link-code-<accountid>   # 任意の一意な名前
 aws s3 mb s3://$BUCKET
 
-# 1) Lambda コードを zip 化（依存ゼロ: 素のハンドラで boto3 のみ＝ランタイム同梱）
-bash scripts/package_lambda.sh              # /tmp/slug_suggester.zip を生成（.py のみ）
+# 1) Lambda コードを zip 化（依存ゼロ: 素のハンドラで boto3 のみ＝ランタイム同梱、.py のみ）
+( cd lambda/slug_suggester && zip -r -X /tmp/slug_suggester.zip . -x '*__pycache__*' -x 'build/*' -x '*.pyc' -x 'requirements.txt' )
 
 # 2) S3 へアップロード
 aws s3 cp /tmp/slug_suggester.zip s3://$BUCKET/slug_suggester.zip
@@ -91,7 +91,7 @@ S3 キーが固定（`slug_suggester.zip`）のため `cloudformation deploy` �
 コードのみの反映は `lambda update-function-code` を使う:
 
 ```bash
-bash scripts/package_lambda.sh              # 依存込みで /tmp/slug_suggester.zip を生成
+( cd lambda/slug_suggester && zip -r -X /tmp/slug_suggester.zip . -x '*__pycache__*' -x 'build/*' -x '*.pyc' -x 'requirements.txt' )
 aws s3 cp /tmp/slug_suggester.zip s3://$BUCKET/slug_suggester.zip
 aws lambda update-function-code \
   --function-name auto-permanent-link-slug-suggester \
